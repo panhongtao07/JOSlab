@@ -85,14 +85,14 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 	register const char *p;
 	register int ch, err;
 	unsigned long long num;
-	int base, lflag, width, precision, altflag;
+	int base, lflag, width, precision, altflag, color = 0;
 	char padc;
 
 	while (1) {
 		while ((ch = *(unsigned char *) fmt++) != '%') {
 			if (ch == '\0')
 				return;
-			putch(ch, putdat);
+			putch(color|ch, putdat);
 		}
 
 		// Process a %-escape sequence
@@ -101,6 +101,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		precision = -1;
 		lflag = 0;
 		altflag = 0;
+		// color = 0;
 	reswitch:
 		switch (ch = *(unsigned char *) fmt++) {
 
@@ -150,6 +151,11 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 				width = precision, precision = -1;
 			goto reswitch;
 
+		// change color
+		case 'C':
+			color = va_arg(ap, int) << 8;
+			break;
+
 		// long flag (doubled for long long)
 		case 'l':
 			lflag++;
@@ -157,7 +163,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// character
 		case 'c':
-			putch(va_arg(ap, int), putdat);
+			putch(color|va_arg(ap, int), putdat);
 			break;
 
 		// error message
@@ -177,21 +183,21 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 				p = "(null)";
 			if (width > 0 && padc != '-')
 				for (width -= strnlen(p, precision); width > 0; width--)
-					putch(padc, putdat);
+					putch(color|padc, putdat);
 			for (; (ch = *p++) != '\0' && (precision < 0 || --precision >= 0); width--)
 				if (altflag && (ch < ' ' || ch > '~'))
-					putch('?', putdat);
+					putch(color|'?', putdat);
 				else
-					putch(ch, putdat);
+					putch(color|ch, putdat);
 			for (; width > 0; width--)
-				putch(' ', putdat);
+				putch(color|' ', putdat);
 			break;
 
 		// (signed) decimal
 		case 'd':
 			num = getint(&ap, lflag);
 			if ((long long) num < 0) {
-				putch('-', putdat);
+				putch(color|'-', putdat);
 				num = -(long long) num;
 			}
 			base = 10;
@@ -213,8 +219,8 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// pointer
 		case 'p':
-			putch('0', putdat);
-			putch('x', putdat);
+			putch(color|'0', putdat);
+			putch(color|'x', putdat);
 			num = (unsigned long long)
 				(uintptr_t) va_arg(ap, void *);
 			base = 16;
@@ -230,12 +236,12 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// escaped '%' character
 		case '%':
-			putch(ch, putdat);
+			putch(color|ch, putdat);
 			break;
 
 		// unrecognized escape sequence - just print it literally
 		default:
-			putch('%', putdat);
+			putch(color|'%', putdat);
 			for (fmt--; fmt[-1] != '%'; fmt--)
 				/* do nothing */;
 			break;
