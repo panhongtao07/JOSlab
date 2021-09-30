@@ -61,17 +61,25 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	// written by pht - 21.9.30
 	uint32_t *ebp;
 	uintptr_t eip;
+	struct Eipdebuginfo eip_info;
 	ebp = (uint32_t *)read_ebp();
 	
 	cprintf("Stack backtrace:\n");
 
 	const char stackfmt[] = \
 		"  ebp %08x  eip %08x  args %08x %08x %08x %08x %08x\n";
+	const char debugfmt[] = \
+		"        %s:%d: %.*s+%d\n";
 	while (ebp)
 	{
 		eip = ebp[1];
 		cprintf(stackfmt, ebp, eip, ebp[2], ebp[3], ebp[4], ebp[5], ebp[6]);
 		ebp = (uint32_t *)ebp[0];
+		if(debuginfo_eip(eip, &eip_info) >= 0)
+			cprintf(debugfmt,
+					eip_info.eip_file, eip_info.eip_line,
+					eip_info.eip_fn_namelen, eip_info.eip_fn_name,
+					eip - eip_info.eip_fn_addr);
 	}
 	
 	return 0;
