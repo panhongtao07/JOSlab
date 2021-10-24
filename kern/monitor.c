@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -25,6 +26,10 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display a backtrace information about the stack", mon_backtrace },
+	{ "showmappings", "Display a map information in given range", mon_showmappings },
+	{ "setperm", "Set a page's permission", mon_setperm },
+	{ "addperm", "Add a page's permission", mon_addperm },
+	{ "rmperm", "Remove a page's permission", mon_rmperm },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -86,7 +91,110 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+int
+mon_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+    char *errChar;
+    if (argc != 3) {
+        cprintf("Requires 2 virtual addresses.\n");
+        return -1;
+    }
+    uintptr_t start_addr = strtol(argv[1], &errChar, 16);
+    if (*errChar) {
+        cprintf("Invalid virtual address: %s.\n", argv[1]);
+        return -1;
+    }
+    uintptr_t end_addr = strtol(argv[2], &errChar, 16);
+    if (*errChar) {
+        cprintf("Invalid virtual address: %s.\n", argv[2]);
+        return -1;
+    }
+    
+	cprintf("Show mappings: %s - %s.\n", argv[1], argv[2]);
+	const char empty_fmt[] = \
+		"Virtual address [%08x] - not mapped\n";
+	const char page_fmt[] = \
+		"Virtual address [%08x] - mapped to [%08x], "\
+		"permission: -%c----%c%cP\n";
+    for (
+		uintptr_t cur_addr = ROUNDUP(start_addr, PGSIZE);	// 按页对齐
+		cur_addr <= end_addr && cur_addr >= start_addr; 	// 避免溢出
+		cur_addr += PGSIZE
+	) {
+        pte_t *pte = pgdir_walk(kern_pgdir, (void *) cur_addr, 0);
+        if (!pte || !(*pte & PTE_P)) 
+            cprintf(empty_fmt, cur_addr);
+        else {
+            cprintf(page_fmt,
+					cur_addr,
+					PTE_ADDR(*pte),
+					(*pte & PTE_PS) ? 'S':'-',
+					(*pte & PTE_U) ? 'U':'-',
+					(*pte & PTE_W) ? 'W':'-');
+        }
+    }
+    return 0;
+}
 
+#define PERM_SET 0
+#define PERM_ADD 1
+#define PERM_RM 2
+int
+mon_changeperm(int argc, char **argv, struct Trapframe *tf, int type)
+{
+    char *errChar;
+    if (argc != 3) {
+        cprintf("Requires virtual address and permission.\n");
+        return -1;
+    }
+    uintptr_t addr = strtol(argv[1], &errChar, 16);
+    if (*errChar) {
+        cprintf("Invalid virtual address: %s.\n", argv[1]);
+        return -1;
+    }
+    int perm = strtol(argv[2], &errChar, 16);
+    if (*errChar) {
+        cprintf("Invalid permission: %s.\n", argv[2]);
+        return -1;
+    }
+
+	addr = ROUNDDOWN(addr, PGSIZE);
+	perm &= PTE_PS | PTE_W | PTE_U;
+	pte_t *pte = pgdir_walk(kern_pgdir, (void *) addr, 0);
+	if (!pte || !(*pte & PTE_P)) {
+		cprintf("Virtual address [%08x] is not mapped\n", addr);
+		return -1;
+	}
+	cprintf("Virtual address [%08x] - mapped to [%08x]\n", addr, PTE_ADDR(*pte));
+	cprintf("permission: -%c----%c%cP",
+			(*pte & PTE_PS) ? 'S':'-',
+			(*pte & PTE_U) ? 'U':'-',
+			(*pte & PTE_W) ? 'W':'-');
+	
+	int real_perm = (*pte) & 0xFFF;
+	if (type == PERM_SET)
+		real_perm = perm;
+	else if (type == PERM_ADD)
+		real_perm |= perm;
+	else if (type == PERM_RM)
+		real_perm &= ~perm;
+	*pte = PTE_ADDR(*pte) | real_perm | PTE_P;
+	cprintf("  ->  -%c----%c%cP\n",
+			(*pte & PTE_PS) ? 'S':'-',
+			(*pte & PTE_U) ? 'U':'-',
+			(*pte & PTE_W) ? 'W':'-');
+	return 0;
+}
+
+int mon_setperm(int argc, char **argv, struct Trapframe *tf){
+	return mon_changeperm(argc, argv, tf, PERM_SET);
+}
+int mon_addperm(int argc, char **argv, struct Trapframe *tf){
+	return mon_changeperm(argc, argv, tf, PERM_ADD);
+}
+int mon_rmperm(int argc, char **argv, struct Trapframe *tf){
+	return mon_changeperm(argc, argv, tf, PERM_RM);
+}
 
 /***** Kernel monitor command interpreter *****/
 
