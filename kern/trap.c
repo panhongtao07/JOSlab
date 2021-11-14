@@ -65,6 +65,8 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
+	#define IDT_VEC
+	#ifndef IDT_VEC
 	#define dhdl(name, sig, dpl) \
 			void name(); \
 			SETGATE(idt[sig], 0, GD_KT, name, dpl)
@@ -91,6 +93,20 @@ trap_init(void)
 	dhdl(hdl48, 48, 3);
 	// SETCALLGATE(idt[48], GD_KT, hdl48, 3);
 	#undef dhdl
+	#else
+	extern uint32_t idt_entries[];
+	cprintf("%08x\n", idt_entries);
+	for (size_t i = 0; i <= 19; i++) {
+		cprintf("%d: %08x\n", i, idt_entries[i]);
+		if (i == T_BRKPT)
+			{SETGATE(idt[i], 0, GD_KT, idt_entries[i], 3);}
+		else if (i == T_SYSCALL)
+			{SETGATE(idt[i], 0, GD_KT, idt_entries[i], 3);}
+		else if (i != 9 && i != 15)
+			{SETGATE(idt[i], 0, GD_KT, idt_entries[i], 0);}
+	}
+	SETGATE(idt[48], 0, GD_KT, idt_entries[48], 3);
+	#endif
 
 	// Per-CPU setup 
 	trap_init_percpu();
