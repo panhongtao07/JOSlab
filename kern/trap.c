@@ -88,8 +88,8 @@ trap_init(void)
 	dhdl(hdl17, 17, 0);
 	dhdl(hdl18, 18, 0);
 	dhdl(hdl19, 19, 0);
-	dhdl(hdl48, 48, 0);
-	SETCALLGATE(idt[48], GD_KT, hdl48, 3);
+	dhdl(hdl48, 48, 3);
+	// SETCALLGATE(idt[48], GD_KT, hdl48, 3);
 	#undef dhdl
 
 	// Per-CPU setup 
@@ -176,6 +176,17 @@ trap_dispatch(struct Trapframe *tf)
 	}
 	if (tf->tf_trapno == T_BRKPT) {
 		monitor(tf);
+		return;
+	}
+	if (tf->tf_trapno == T_SYSCALL) {
+		tf->tf_regs.reg_eax = syscall(
+			tf->tf_regs.reg_eax,
+			tf->tf_regs.reg_edx,
+			tf->tf_regs.reg_ecx,
+			tf->tf_regs.reg_ebx,
+			tf->tf_regs.reg_edi,
+			tf->tf_regs.reg_esi
+		);
 		return;
 	}
 
