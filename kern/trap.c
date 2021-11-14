@@ -65,6 +65,32 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
+	#define dhdl(name, sig, dpl) \
+			void name(); \
+			SETGATE(idt[sig], 0, GD_KT, name, dpl)
+	dhdl(hdl0, 0, 0);
+	dhdl(hdl1, 1, 0);
+	dhdl(hdl2, 2, 0);
+	dhdl(hdl3, 3, 3);
+	dhdl(hdl4, 4, 0);
+	dhdl(hdl5, 5, 0);
+	dhdl(hdl6, 6, 0);
+	dhdl(hdl7, 7, 0);
+	dhdl(hdl8, 8, 0);
+	// dhdl(hdl9, 9, 0);
+	dhdl(hdl10, 10, 0);
+	dhdl(hdl11, 11, 0);
+	dhdl(hdl12, 12, 0);
+	dhdl(hdl13, 13, 0);
+	dhdl(hdl14, 14, 0);
+	// dhdl(hdl15, 15, 0);
+	dhdl(hdl16, 16, 0);
+	dhdl(hdl17, 17, 0);
+	dhdl(hdl18, 18, 0);
+	dhdl(hdl19, 19, 0);
+	dhdl(hdl48, 48, 0);
+	SETCALLGATE(idt[48], GD_KT, hdl48, 3);
+	#undef dhdl
 
 	// Per-CPU setup 
 	trap_init_percpu();
