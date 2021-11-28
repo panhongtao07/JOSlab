@@ -16,3 +16,21 @@
 /sol?/
 /myapi.key
 /.suf
+
+# PROJECT SPECIFIC #
+# IDE configs #
+.vscode/
+.idea/
+logstore/
+
+# handin #
+handin/
+
+# local #
+* old.*
+*_old.*
+*fake.*
+
+# Python #
+__pycache__/
+*.py[cod]
