@@ -321,6 +321,7 @@ page_init(void)
 	// LAB 4:
 	// Change your code to mark the physical page at MPENTRY_PADDR
 	// as in use
+	size_t mp_page = MPENTRY_PADDR / PGSIZE;
 
 	// The example code here marks all physical pages as free.
 	// However this is not truly the case.  What memory is free?
@@ -348,6 +349,11 @@ page_init(void)
 	//  2) The rest of base memory, [PGSIZE, npages_basemem * PGSIZE)
 	//     is free.
 	for (i = 1; i < npages_basemem; i++) {
+		if (i == mp_page) {
+			pages[i].pp_link = NULL;
+			pages[i].pp_ref = 1;
+			continue;
+		}
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
