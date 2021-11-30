@@ -95,6 +95,13 @@ trap_init(void)
 	dhdl(hdl17, 17, 0);
 	dhdl(hdl18, 18, 0);
 	dhdl(hdl19, 19, 0);
+	// interrupts
+	dhdl(hdl32, IRQ_OFFSET + IRQ_TIMER, 0);
+	dhdl(hdl33, IRQ_OFFSET + IRQ_KBD, 0);
+	dhdl(hdl36, IRQ_OFFSET + IRQ_SERIAL, 0);
+	dhdl(hdl39, IRQ_OFFSET + IRQ_SPURIOUS, 0);
+	dhdl(hdl46, IRQ_OFFSET + IRQ_IDE, 0);
+	dhdl(hdl51, IRQ_OFFSET + IRQ_ERROR, 0);
 	dhdl(hdl48, 48, 3);
 	// SETCALLGATE(idt[48], GD_KT, hdl48, 3);
 	#undef dhdl
