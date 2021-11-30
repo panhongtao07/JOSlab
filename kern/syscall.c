@@ -296,7 +296,36 @@ static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_try_send not implemented");
+    struct Env *env;
+    if (envid2env(envid, &env, 0) < 0)
+        return -E_BAD_ENV;
+    if (env->env_ipc_recving == false) 
+        return -E_IPC_NOT_RECV;
+
+    if ((uintptr_t)srcva < UTOP) {
+        if (PGOFF(srcva) != 0)
+            return -E_INVAL;
+        if ((~perm & (PTE_U | PTE_P)) || (perm & ~PTE_SYSCALL))
+            return -E_INVAL;
+        pte_t *pte;
+        struct PageInfo *pg = page_lookup(curenv->env_pgdir, srcva, &pte);
+        if ((perm & PTE_W) && !(*pte & PTE_W))
+            return -E_INVAL;
+        if (env->env_ipc_dstva >= (void *)UTOP)
+			return 0;
+		if (page_insert(env->env_pgdir, pg, env->env_ipc_dstva, perm) < 0)
+			return -E_NO_MEM;
+    }
+	else
+		perm = 0;
+	
+    env->env_ipc_recving = false;
+    env->env_ipc_from = sys_getenvid();
+    env->env_ipc_value = value;
+	env->env_ipc_perm = perm;
+    env->env_tf.tf_regs.reg_eax = 0;
+    env->env_status = ENV_RUNNABLE;
+    return 0;
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -314,7 +343,20 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_recv not implemented");
+    if ((uintptr_t) dstva < UTOP && PGOFF(dstva) != 0)
+		return -E_INVAL;
+
+    envid_t envid = sys_getenvid();
+    struct Env *e;
+    // 不检查权限
+    if (envid2env(envid, &e, 0) < 0)
+		return -E_BAD_ENV;
+    
+    e->env_ipc_recving = true;
+    e->env_ipc_dstva = dstva;
+    e->env_status = ENV_NOT_RUNNABLE;
+    sys_yield();
+
 	return 0;
 }
 
@@ -359,6 +401,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
         break;
     case SYS_page_unmap:
         ret = sys_page_unmap(a1, (void *)a2);
+        break;
+    case SYS_ipc_try_send:
+        ret = sys_ipc_try_send(a1, a2, (void *)a3, a4);
+        break;
+    case SYS_ipc_recv:
+        ret = sys_ipc_recv((void *)a1);
         break;
     default:
         ret = -E_INVAL;
