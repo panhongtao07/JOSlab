@@ -300,6 +300,12 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
+    uintptr_t stack_end = KSTACKTOP - KSTKSIZE;
+    for (size_t i = 0; i < NCPU; i++) {
+        boot_map_region(kern_pgdir, (uintptr_t)stack_end, KSTKSIZE,
+                        PADDR(percpu_kstacks[i]), PTE_W);
+        stack_end -= KSTKSIZE + KSTKGAP;
+    }
 
 }
 
