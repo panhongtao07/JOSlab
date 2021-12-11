@@ -309,20 +309,22 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
             return -E_INVAL;
         pte_t *pte;
         struct PageInfo *pg = page_lookup(curenv->env_pgdir, srcva, &pte);
+        if (pg == NULL)
+            return -E_INVAL;
         if ((perm & PTE_W) && !(*pte & PTE_W))
             return -E_INVAL;
-        if (env->env_ipc_dstva >= (void *)UTOP)
-			return 0;
-		if (page_insert(env->env_pgdir, pg, env->env_ipc_dstva, perm) < 0)
-			return -E_NO_MEM;
+        if (env->env_ipc_dstva < (void *)UTOP) {
+            if (page_insert(env->env_pgdir, pg, env->env_ipc_dstva, perm) < 0)
+                return -E_NO_MEM;
+        }
     }
-	else
-		perm = 0;
-	
+    else
+        perm = 0;
+    
     env->env_ipc_recving = false;
     env->env_ipc_from = sys_getenvid();
     env->env_ipc_value = value;
-	env->env_ipc_perm = perm;
+    env->env_ipc_perm = perm;
     env->env_tf.tf_regs.reg_eax = 0;
     env->env_status = ENV_RUNNABLE;
     return 0;
@@ -344,17 +346,20 @@ sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
     if ((uintptr_t) dstva < UTOP && PGOFF(dstva) != 0)
-		return -E_INVAL;
+        return -E_INVAL;
 
+    // 接收无需确认当前环境，调用者负责
+    /*
     envid_t envid = sys_getenvid();
     struct Env *e;
     // 不检查权限
     if (envid2env(envid, &e, 0) < 0)
-		return -E_BAD_ENV;
+        return -E_BAD_ENV;
+    */
     
-    e->env_ipc_recving = true;
-    e->env_ipc_dstva = dstva;
-    e->env_status = ENV_NOT_RUNNABLE;
+    curenv->env_ipc_recving = true;
+    curenv->env_ipc_dstva = dstva;
+    curenv->env_status = ENV_NOT_RUNNABLE;
     sys_yield();
 
 	return 0;
@@ -381,9 +386,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
     case SYS_getenvid:
         ret = sys_getenvid();
         break;
-	case SYS_yield:
-		sys_yield();
-		break;
+    case SYS_yield:
+        sys_yield();
+        break;
     case SYS_exofork:
         ret = (int32_t)sys_exofork();
         break;
