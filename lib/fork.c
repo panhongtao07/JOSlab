@@ -25,6 +25,8 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 4: Your code here.
+    if (!(err & FEC_WR) || !(uvpt[PGNUM(addr)] & PTE_COW))
+        panic("pgfault: invalid user trap frame");
 
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
@@ -33,8 +35,15 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
-
-	panic("pgfault not implemented");
+    envid_t envid = sys_getenvid();
+    if ((r = sys_page_alloc(envid, (void *)PFTEMP, PTE_P | PTE_W | PTE_U)) < 0)
+        panic("pgfault: page allocation failed (%e)", r);
+    addr = ROUNDDOWN(addr, PGSIZE);
+    memmove(PFTEMP, addr, PGSIZE);
+    if ((r = sys_page_map(envid, PFTEMP, envid, addr, PTE_P | PTE_W |PTE_U)) < 0)
+        panic("pgfault: page map failed (%e)", r);
+    if ((r = sys_page_unmap(envid, PFTEMP)) < 0)
+        panic("pgfault: page unmap failed (%e)", r);
 }
 
 //
@@ -54,7 +63,20 @@ duppage(envid_t envid, unsigned pn)
 	int r;
 
 	// LAB 4: Your code here.
-	panic("duppage not implemented");
+    envid_t this_env_id = sys_getenvid();
+    void * va = (void *)(pn * PGSIZE);
+
+    int perm = uvpt[pn] & 0xFFF;
+    if ((perm & PTE_W) || (perm & PTE_COW)) {
+        perm |= PTE_COW;
+        perm &= ~PTE_W;
+    }
+    perm &= PTE_SYSCALL;
+	// 必须是先修改子进程再修改父进程，系统调用返回时可能访问本页
+    if((r = sys_page_map(this_env_id, va, envid, va, perm)) < 0) 
+        panic("duppage: %e", r);
+    if((r = sys_page_map(this_env_id, va, this_env_id, va, perm)) < 0) 
+        panic("duppage: %e", r);
 	return 0;
 }
 
@@ -78,7 +100,33 @@ envid_t
 fork(void)
 {
 	// LAB 4: Your code here.
-	panic("fork not implemented");
+	set_pgfault_handler(pgfault);
+    envid_t chd_id = sys_exofork();
+    if (chd_id < 0)
+		panic("fork: %e", chd_id);
+    if (!chd_id) {
+        // 子进程
+        thisenv = &envs[ENVX(sys_getenvid())];
+        return chd_id;
+    }
+
+    for (uintptr_t addr = UTEXT; addr < USTACKTOP; addr += PGSIZE)
+        if ((uvpd[PDX(addr)] & PTE_P) && (uvpt[PGNUM(addr)] & PTE_P) )
+            duppage(chd_id, PGNUM(addr));
+
+    int r = sys_page_alloc(
+        chd_id, (void *)(UXSTACKTOP - PGSIZE), PTE_U | PTE_W | PTE_P);
+    if (r < 0)
+        panic("fork: %e", r);
+
+    extern void _pgfault_upcall();
+    if ((r = sys_env_set_pgfault_upcall(chd_id, _pgfault_upcall)) < 0)
+        panic("fork: set upcall for child fail (%e)", r);
+
+    if ((r = sys_env_set_status(chd_id, ENV_RUNNABLE)) < 0)
+        panic("fork: sys_env_set_status fail (%e)", r);
+
+    return chd_id;
 }
 
 // Challenge!

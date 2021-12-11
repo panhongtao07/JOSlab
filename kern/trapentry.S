@@ -47,10 +47,51 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
+TRAPHANDLER_NOEC(hdl0, T_DIVIDE)
+TRAPHANDLER_NOEC(hdl1, T_DEBUG)
+TRAPHANDLER_NOEC(hdl2, T_NMI)
+TRAPHANDLER_NOEC(hdl3, T_BRKPT)
+TRAPHANDLER_NOEC(hdl4, T_OFLOW)
+TRAPHANDLER_NOEC(hdl5, T_BOUND)
+TRAPHANDLER_NOEC(hdl6, T_ILLOP)
+TRAPHANDLER_NOEC(hdl7, T_DEVICE)
+TRAPHANDLER(hdl8, T_DBLFLT)
+// TRAPHANDLER_NOEC(hdl9, 9) 	// 9 deprecated since 386
+TRAPHANDLER(hdl10, T_TSS)
+TRAPHANDLER(hdl11, T_SEGNP)
+TRAPHANDLER(hdl12, T_STACK)
+TRAPHANDLER(hdl13, T_GPFLT)
+TRAPHANDLER(hdl14, T_PGFLT)
+// TRAPHANDLER_NOEC(hdl15, 15) 	// 15 reserved by intel
+TRAPHANDLER_NOEC(hdl16, T_FPERR)
+TRAPHANDLER(hdl17, T_ALIGN)
+TRAPHANDLER_NOEC(hdl18, T_MCHK)
+TRAPHANDLER_NOEC(hdl19, T_SIMDERR)
+// interrupts
+TRAPHANDLER_NOEC(hdl32, IRQ_OFFSET + IRQ_TIMER)
+TRAPHANDLER_NOEC(hdl33, IRQ_OFFSET + IRQ_KBD)
+TRAPHANDLER_NOEC(hdl36, IRQ_OFFSET + IRQ_SERIAL)
+TRAPHANDLER_NOEC(hdl39, IRQ_OFFSET + IRQ_SPURIOUS)
+TRAPHANDLER_NOEC(hdl46, IRQ_OFFSET + IRQ_IDE)
+TRAPHANDLER_NOEC(hdl51, IRQ_OFFSET + IRQ_ERROR)
+// system call (interrupt)
+TRAPHANDLER_NOEC(hdl48, T_SYSCALL)
+
 
 
 
 /*
  * Lab 3: Your code here for _alltraps
  */
+.text
+.globl _alltraps
+_alltraps:
+	pushl %ds
+	pushl %es
+	pushal
 
+	movw $GD_KD, %ax
+	movw %ax, %ds
+	movw %ax, %es
+	pushl %esp
+	call trap
