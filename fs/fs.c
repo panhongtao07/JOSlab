@@ -70,6 +70,15 @@ alloc_block(void)
             return blockno;
         }
     }
+    
+    for (uint32_t blockno = 0; blockno < super->s_nblocks; blockno++) {
+        if (!(uvpt[PGNUM(diskaddr(blockno))] & PTE_A)) {
+            flush_block(diskaddr(blockno));
+            bitmap[blockno / 32] ^= (1 << (blockno % 32));
+            flush_block(&bitmap[blockno / 32]);
+            return blockno;
+        }
+    }
 	return -E_NO_DISK;
 }
 
